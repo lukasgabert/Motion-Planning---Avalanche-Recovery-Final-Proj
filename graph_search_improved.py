@@ -61,7 +61,7 @@ class GridMap:
             print 'rows', self.rows
             print 'cols', self.cols
             print lines
-        self.decomp_grid = np.zeros((self.rows, self.cols))
+        self.decomp_grid = np.zeros((self.rows, self.cols), dtype=int)
         self.occupancy_grid = np.zeros((self.rows, self.cols), dtype=np.bool)
         for r in xrange(self.rows):
             for c in xrange(self.cols):
@@ -71,39 +71,42 @@ class GridMap:
         # Run through states left to right down columns, if diff > cliff height, make it a "cliff"
         is_now_next_row = False
         need_new_cell_next_row = False
+        new_cell_next_row_num = 0
+        is_new_row_num = 0
         is_new_cell = False
+        cell_break_current_row = False
         for r in xrange(self.rows):
             if need_new_cell_next_row:
                 is_now_next_row = True
+                is_new_row_num = new_cell_next_row_num
                 need_new_cell_next_row = False
+            elif cell_break_current_row:
+                print "cell break!!", c, r
+                is_now_next_row = True
+                is_new_row_num = self.decomp_grid[r - 1, 0]
+                cell_break_current_row = False
             for c in xrange(self.cols):
 
                 # Set value of cell to decomp grid
-                if is_now_next_row:
+                if is_now_next_row and (self.decomp_grid[r - 1, c] == is_new_row_num):
                     is_now_next_row = False
                     is_new_cell = True
-                    print is_new_cell
-                # look for a vertical discontinuity
-                # elif r > 0 and \
-                #         abs(self.height_dict[(r, c)] - self.height_dict[(r-1, c)]) > self.cliff_height:
-                #     if c > 0:
-                #         if self.decomp_grid[r - 1, c - 1] == self.decomp_grid[r, c - 1]:
-                #             is_new_cell = True
-                #     else:
-                #         is_new_cell = True
-                #     print is_new_cell
+                    # print "making it a new cell", c, r
+                    # print is_new_cell
                 # look for a horizontal discontinuity
                 elif c > 0 and \
                        abs(self.height_dict[(r, c)] - self.height_dict[(r, c-1)]) > self.cliff_height:
                     if c > 0:
                         if self.decomp_grid[r - 1, c - 1] == self.decomp_grid[r - 1, c]:
                             is_new_cell = True
+                            cell_break_current_row = True
                     else:
                         is_new_cell = True
-                    print is_new_cell
+                        cell_break_current_row = True
+                    # print is_new_cell
                 else:
                     is_new_cell = False
-                    print is_new_cell
+                    # print is_new_cell
                 self.decomp_grid[r][c] = self.find_cell_num(r, c, is_new_cell)
 
                 # CHECK TO SEE IF VERTEX IN NEXT COLUMN, and set value to create new set of cells next column
@@ -113,44 +116,53 @@ class GridMap:
                         if abs(self.height_dict[(r + 1, c - 1)] - self.height_dict[(r + 1, c)]) > self.cliff_height:
                             if self.decomp_grid[r, c - 1] == self.decomp_grid[r, c]:
                                 need_new_cell_next_row = True
-                                print "Horizontal Vertex"
+                                new_cell_next_row_num = self.decomp_grid[r, c]
+                                # print "Horizontal Vertex", new_cell_next_row_num
+                                # print c, r
                     # Vertical vertex
-                        if abs(self.height_dict[(r, c)] - self.height_dict[(r + 1, c)]) > self.cliff_height:
-                            if r > 1 and self.decomp_grid[r - 1, c - 1] == self.decomp_grid[r - 1, c]:
-                                need_new_cell_next_row = True
-                                print "Vertical Vertex"
-                            else:
-                                need_new_cell_next_row = True
-                                print "Vertical Vertex Else"
+                    if abs(self.height_dict[(r, c)] - self.height_dict[(r + 1, c)]) > self.cliff_height and not \
+                       need_new_cell_next_row:
+                        if r > 0 and self.decomp_grid[r - 1, c] == self.decomp_grid[r - 1, c]:
+                            need_new_cell_next_row = True
+                            new_cell_next_row_num = self.decomp_grid[r, c]
+                            # print "Vertical Vertex", new_cell_next_row_num
+                            # print c, r
+                        else:
+                            need_new_cell_next_row = True
+                            new_cell_next_row_num = self.decomp_grid[r, c]
+                            print "Vertical Vertex Else", new_cell_next_row_num
+                            print c, r
         print self.decomp_grid
+        print self.adjacency_graph
 
-    def find_cell_num(self, row, col, is_new):
+    def find_cell_num(self, row, col, is_new, not_query = True):
         '''
         Input a state and say if you want to define a new cell or keep using the old one.
         '''
-        cell_number = None
         if len(self.cell_num_list) < 1:
             cell_number = 0
-            self.cell_num_list.append(cell_number)
+            if not_query:
+                self.cell_num_list.append(cell_number)
         elif is_new:
             # Find biggest cell num, use 1 more than that
             cell_number = max(self.cell_num_list) + 1
-            self.cell_num_list.append(cell_number)
-            # ADD TO ADJACENCY GRAPH
-            # Find left cell, add to graph
-            if col > 0:
-                self.adjacency_graph.append((cell_number,
-                                             self.decomp_grid[row, col-1]))
-            # Find Upper cell, add to graph
-            if row > 0:
-                self.adjacency_graph.append((cell_number, self.decomp_grid[row-1, col]))
+            if not_query:
+                self.cell_num_list.append(cell_number)
+                # ADD TO ADJACENCY GRAPH
+                # Find left cell, add to graph
+                if col > 0:
+                    self.adjacency_graph.append((cell_number,
+                                                 self.decomp_grid[row, col-1]))
+                # Find Upper cell, add to graph
+                if row > 0:
+                    self.adjacency_graph.append((cell_number, self.decomp_grid[row-1, col]))
         else:
             # Find cell to left/up and use that cell
             # If wall to left, use up val
             if ((col > 0) and (row > 0)) and \
                     (abs(self.height_dict[(row, col)] - self.height_dict[(row, col - 1)]) > self.cliff_height):
                 cell_number = self.decomp_grid[row - 1, col]
-            elif col is 0:
+            elif (col is 0) and (row > 0):
                 cell_number = self.decomp_grid[row - 1, col]
             # else, use upper val
             else:
