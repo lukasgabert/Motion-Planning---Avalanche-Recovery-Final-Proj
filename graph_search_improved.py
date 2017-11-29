@@ -9,7 +9,7 @@ from math import hypot
 
 _DEBUG = False
 _DEBUG_END = True
-_ACTIONS = ['u','d','l','r']
+_ACTIONS = ['r','d','u','l']
 _ACTIONS_REVERSED = ['r','l','d','u']
 _ACTIONS_2 = ['u','d','l','r','ur','ul','dr','dl']
 _X = 1
@@ -56,7 +56,7 @@ class GridMap:
         map_file.close()
         self.rows = len(lines)
         self.cols = max([len(l) for l in lines])
-        self.init_pos = (self.rows, self.cols)
+        self.init_pos = (self.rows-1, self.cols-1)
         if _DEBUG:
             print 'rows', self.rows
             print 'cols', self.cols
@@ -81,7 +81,7 @@ class GridMap:
                 is_new_row_num = new_cell_next_row_num
                 need_new_cell_next_row = False
             elif cell_break_current_row:
-                print "cell break!!", c, r
+                # print "cell break!!", c, r
                 is_now_next_row = True
                 is_new_row_num = self.decomp_grid[r - 1, 0]
                 cell_break_current_row = False
@@ -130,10 +130,11 @@ class GridMap:
                         else:
                             need_new_cell_next_row = True
                             new_cell_next_row_num = self.decomp_grid[r, c]
-                            print "Vertical Vertex Else", new_cell_next_row_num
-                            print c, r
-        print self.decomp_grid
-        print self.adjacency_graph
+                            # print "Vertical Vertex Else", new_cell_next_row_num
+                            # print c, r
+        # print self.decomp_grid
+        # print self.adjacency_graph
+        # print self.cell_num_list
 
     def find_cell_num(self, row, col, is_new, not_query = True):
         '''
@@ -164,9 +165,15 @@ class GridMap:
                 cell_number = self.decomp_grid[row - 1, col]
             elif (col is 0) and (row > 0):
                 cell_number = self.decomp_grid[row - 1, col]
+                if (cell_number, self.decomp_grid[row - 1, col]) not in self.adjacency_graph and \
+                        cell_number != self.decomp_grid[row - 1, col]:
+                    self.adjacency_graph.append((cell_number, self.decomp_grid[row - 1, col]))
             # else, use upper val
             else:
                 cell_number = self.decomp_grid[row, col - 1]
+                if (cell_number, self.decomp_grid[row - 1, col]) not in self.adjacency_graph and \
+                        cell_number != self.decomp_grid[row - 1, col]:
+                    self.adjacency_graph.append((cell_number, self.decomp_grid[row - 1, col]))
         return cell_number
 
     def is_goal(self,s):
@@ -253,7 +260,39 @@ class GridMap:
             display_grid[p] = disp_col
 
         display_grid[self.init_pos] = _INIT_COLOR
-        display_grid[self.goal] = _GOAL_COLOR
+        # display_grid[self.goal] = _GOAL_COLOR
+
+        # Plot display grid for visualization
+        imgplot = plotter.imshow(display_grid)
+        # Set interpolation to nearest to create sharp boundaries
+        imgplot.set_interpolation('nearest')
+        # Set color map to diverging style for contrast
+        imgplot.set_cmap('spectral')
+        plotter.show()
+
+    def display_map_new(self, path=[], visited={}):
+        '''
+        Visualize the map read in. Optionally display the resulting plan and visisted nodes
+
+        path - a list of tuples describing the path take from init to goal
+        visited - a set of tuples describing the states visited during a search
+        '''
+        display_grid = np.array(self.occupancy_grid, dtype=np.float32)
+
+        # Color all visited nodes if requested
+        for v in visited:
+            display_grid[v] = _VISITED_COLOR
+        # Color path in increasing color from init to goal
+        for i, p in enumerate(path):
+            disp_col_forlines = _INIT_COLOR + _PATH_COLOR_RANGE*(i+1)/len(path)
+            display_grid[p] = disp_col_forlines
+            if i > 1:
+                print p
+                print path[i-2]
+                plotter.plot([path[i-2][1], p[1]], [path[i-2][0], p[0]])  # , color)
+
+        # display_grid[self.init_pos] = _INIT_COLOR
+        # display_grid[self.goal] = _GOAL_COLOR
 
         # Plot display grid for visualization
         imgplot = plotter.imshow(display_grid)
@@ -325,14 +364,14 @@ class GridMap:
         '''
         return 0.0
 
-    def euclidean_heuristic(self, s):
+    def euclidean_heuristic(self, current, query):
         '''
         s - tuple describing the state as (row, col) position on the grid.
         returns - floating point estimate of the cost to the goal from state s
         '''
-        gx = self.goal[_X]  #  define the goal x and y locations
-        gy = self.goal[_Y]
-        return np.hypot(s[_X]-gx,s[_Y]-gy)
+        gx = query[_X]  #  define the goal x and y locations
+        gy = query[_Y]
+        return np.hypot(current[_X]-gx, current[_Y]-gy)
 
     def manhattan_heuristic(self, s):
         '''
@@ -372,7 +411,7 @@ class SearchNode:
             plan.insert(0, s.parent_action)
             totpath.insert(0, s.state)
             s = s.parent
-        return plan, totpath
+        return totpath
 
 
 class PriorityQ:
@@ -452,7 +491,7 @@ class PriorityQ:
         return str(self.l)
 
 
-def path_coverage(init_state, f, is_goal, actions):
+def path_coverage(g, init_state, f, actions):
     '''
     Perform depth first search on a grid map.
 
@@ -467,30 +506,73 @@ def path_coverage(init_state, f, is_goal, actions):
     action_path - the actions taken to transition from the initial state to goal state
     '''
     # Perform Cell decomposition based on height
-    # Run through states left to right up columns, if diff >1, make it a "cliff"
+    # Run through states left to right up columns, if diff >1, make it a "cliff" <- Done in map read
+    # Find order of states to visit with Traveling Salesman <<-- DFS type thing for now
+    # print init_state
+    cell_to_start = g.decomp_grid[init_state]
+    adj_mat_path = []
+    adj_mat_path.append(cell_to_start)
+    while len(adj_mat_path) < len(g.cell_num_list):
+        for i, mat_path_instance in enumerate(adj_mat_path, 1):
+            for edge in reversed(g.adjacency_graph):
+                if (edge[0] == mat_path_instance) and (edge[1] not in adj_mat_path):
+                    adj_mat_path.append(edge[1])
+                if (edge[1] == mat_path_instance) and (edge[0] not in adj_mat_path):
+                    adj_mat_path.append(edge[0])
+    adj_mat_path.reverse()
 
-    # Find order of states to visit with Traveling Salesman
-
-    # Run "lawnmower" search on each state, move to next state with A*?
-
-
-    frontier = [] # Search Stack
-    n0 = SearchNode(init_state, actions)
-    visited = []
-    frontier.append(n0)
-    while len(frontier) > 0:
-        # Peak last element
-        n_i = frontier.pop()
-        if n_i.state not in visited:
-            visited.append(n_i.state)
-            if is_goal(n_i.state):
-                return n_i.path(), visited, 1
+    # Run "lawnmower" search on each state, move to next state directly?
+    path = []
+    loc_to_start = (g.rows - 1, g.cols - 1)
+    path.append(loc_to_start)
+    while len(adj_mat_path) > 0:
+        cell_to_sweep = adj_mat_path.pop()
+        biggest_x = 0
+        biggest_y = 0
+        # move to bottom right corner of the cell: MAKE A FUNCTION SO CAN DO TR, TL, BR, BL CORNERS
+        for r in xrange(g.rows):
+            for c in xrange(g.cols):
+                if g.decomp_grid[r, c] == cell_to_sweep:
+                    if c >= biggest_x and r >= biggest_y:
+                        biggest_x = c
+                        biggest_y = r
+        # Move from visited[-1] to loc_to_start:
+        loc_to_start = (biggest_y, biggest_x)
+        useless1, new_path, useless2 =\
+            a_star_search(path[-1], g.transition, loc_to_start, _ACTIONS, g.euclidean_heuristic)
+        temp_path = path
+        path = temp_path + new_path
+        # BECAUSE BOTTOM RIGHT CORNER:
+        _Actions_BR = ['r','d','u','l']
+        # Sweep through the cell ( MAKE A FUNCTION) !!!!  :
+        current_val_of_cell = g.decomp_grid[path[-1]]
+        hit_wall = False
+        while current_val_of_cell == cell_to_sweep:
+            # move left if that stays in the cell:
+            left_move_state = g.transition(path[-1], 'l')
+            up_move_state = g.transition(path[-1], 'u')
+            right_move_state = g.transition(path[-1], 'r')
+            if (g.decomp_grid[left_move_state] == cell_to_sweep) and (left_move_state != path[-1]) and not hit_wall:
+                path.append(left_move_state)
+            # move right if that stays in the cell:
+            elif (g.decomp_grid[right_move_state] == cell_to_sweep) and (right_move_state != path[-1]) and hit_wall:
+                path.append(right_move_state)
+            elif (g.decomp_grid[up_move_state] == cell_to_sweep) and (up_move_state != path[-1]):
+                path.append(up_move_state)
+                hit_wall = not hit_wall
             else:
-                for a in actions:
-                    s_prime = f(n_i.state, a)
-                    n_prime = SearchNode(s_prime, actions, n_i, a)
-                    frontier.append(n_prime)
-    return [], visited, None
+                break
+
+    # Clean up the path #######
+    for x, item in enumerate(path, 1):
+        # print path[x]
+        if path[x] == path[x-1]:
+            del(path[x])
+        if x == len(path)-1:
+            break
+
+    visited = []
+    return path, visited, None
 
 
 def iter_dfs(init_state, f, actions):
@@ -608,18 +690,20 @@ def a_star_search(init_state, f, is_goal, actions, h):
     frontier = PriorityQ()  # Search Stack
     n0 = SearchNode(init_state, actions)
     visited = {}
+    # print "this is n0", n0
+    # print "this is n0.state", n0.state
     frontier.push(n0, 1)
     while frontier.__len__() > 0:
         # Peak last element
         n_i = frontier.pop()
         if (n_i.state not in visited) or (n_i.cost < visited[n_i.state]):
             visited[n_i.state] = n_i.cost
-            if is_goal(n_i.state):
-                return n_i.path(), visited, 1
+            if n_i.state == is_goal:
+                return [], n_i.path(), 1
             else:
                 for a in actions:
                     s_prime = f(n_i.state, a)
-                    heur = h(s_prime)
+                    heur = h(s_prime, is_goal)
                     if a in ['u', 'd', 'l', 'r']:
                         n_prime = SearchNode(s_prime, actions, n_i, a,  1 + n_i.cost)
                         if (s_prime in visited and visited[s_prime] > n_prime.cost) or \
@@ -634,4 +718,4 @@ def a_star_search(init_state, f, is_goal, actions, h):
                             frontier.push(n_prime, 1.5 + n_i.cost + heur)
                         elif s_prime in frontier and n_prime.cost + heur < frontier.get_cost(n_prime):
                             frontier.replace(n_prime,n_prime.cost + heur)
-    return [], visited, None
+    return [], n_i.path(), None
