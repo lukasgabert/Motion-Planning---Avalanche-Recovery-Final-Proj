@@ -87,6 +87,9 @@ class GridMap:
                 cell_break_current_row = False
             for c in xrange(self.cols):
 
+                # NEED TO ADD FUNCTIONALITY FOR DIAGONAL EDGES
+                # SET CONVEXITY, IF IT CHANGES, NEED NEW CELL
+                # MAY NEED MAJOR CHANGES
                 # Set value of cell to decomp grid
                 if is_now_next_row and (self.decomp_grid[r - 1, c] == is_new_row_num):
                     is_now_next_row = False
