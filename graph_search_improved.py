@@ -71,14 +71,17 @@ class GridMap:
         # Run through states left to right down columns, if diff > cliff height, make it a "cliff"
         is_now_next_row = False
         need_new_cell_next_row = False
-        new_cell_next_row_num = 0
+        new_cell_next_col_num = []
         is_new_row_num = 0
         is_new_cell = False
         cell_break_current_row = False
+        new_cell_current_col = []
         for r in xrange(self.rows):
             if need_new_cell_next_row:
                 is_now_next_row = True
-                is_new_row_num = new_cell_next_row_num
+                is_new_row_num = new_cell_next_col_num.pop()
+                new_cell_current_col = new_cell_next_col_num
+                new_cell_next_col_num = []
                 need_new_cell_next_row = False
             elif cell_break_current_row:
                 # print "cell break!!", c, r
@@ -87,13 +90,14 @@ class GridMap:
                 cell_break_current_row = False
             for c in xrange(self.cols):
 
-                # NEED TO ADD FUNCTIONALITY FOR DIAGONAL EDGES
-                # SET CONVEXITY, IF IT CHANGES, NEED NEW CELL
-                # MAY NEED MAJOR CHANGES
                 # Set value of cell to decomp grid
                 if is_now_next_row and (self.decomp_grid[r - 1, c] == is_new_row_num):
-                    is_now_next_row = False
-                    is_new_cell = True
+                        if len(new_cell_current_col) == 0:
+                            is_now_next_row = False
+                            is_new_cell = True
+                        else:
+                            is_new_row_num = new_cell_current_col.pop()
+                            is_new_cell = True
                     # print "making it a new cell", c, r
                     # print is_new_cell
                 # look for a horizontal discontinuity
@@ -113,28 +117,28 @@ class GridMap:
                 self.decomp_grid[r][c] = self.find_cell_num(r, c, is_new_cell)
 
                 # CHECK TO SEE IF VERTEX IN NEXT COLUMN, and set value to create new set of cells next column
-                if r < self.rows - 1 and not need_new_cell_next_row:
+                if r < self.rows - 1:  # and not need_new_cell_next_row:
                     # Horizontal vertex
                     if c > 0:
                         if abs(self.height_dict[(r + 1, c - 1)] - self.height_dict[(r + 1, c)]) > self.cliff_height:
                             if self.decomp_grid[r, c - 1] == self.decomp_grid[r, c]:
                                 need_new_cell_next_row = True
-                                new_cell_next_row_num = self.decomp_grid[r, c]
-                                # print "Horizontal Vertex", new_cell_next_row_num
-                                # print c, r
+                                new_cell_next_col_num.append(self.decomp_grid[r, c])
+                                # print "Horizontal Vertex", new_cell_next_col_num
+                                # print r, c
                     # Vertical vertex
                     if abs(self.height_dict[(r, c)] - self.height_dict[(r + 1, c)]) > self.cliff_height and not \
                        need_new_cell_next_row:
                         if r > 0 and self.decomp_grid[r - 1, c] == self.decomp_grid[r - 1, c]:
                             need_new_cell_next_row = True
-                            new_cell_next_row_num = self.decomp_grid[r, c]
-                            # print "Vertical Vertex", new_cell_next_row_num
-                            # print c, r
+                            new_cell_next_col_num.append(self.decomp_grid[r, c])
+                            # print "Vertical Vertex", new_cell_next_col_num
+                            # print r, c
                         else:
                             need_new_cell_next_row = True
-                            new_cell_next_row_num = self.decomp_grid[r, c]
-                            # print "Vertical Vertex Else", new_cell_next_row_num
-                            # print c, r
+                            new_cell_next_col_num.append(self.decomp_grid[r, c])
+                            # print "Vertical Vertex Else", new_cell_next_col_num
+                            # print r, x
         # print self.decomp_grid
         # print self.adjacency_graph
         # print self.cell_num_list
@@ -322,6 +326,8 @@ class GridMap:
             for c in xrange(self.cols):
                 plotter.text(c, r, self.decomp_grid[(r, c)],
                              ha='center', va='center', fontsize=16, color='gray')
+                disp_col_forlines = _INIT_COLOR + _PATH_COLOR_RANGE *self.decomp_grid[r, c] / len(self.cell_num_list)
+                display_grid[r, c] = disp_col_forlines
 
         # Plot display grid for visualization
         imgplot = plotter.imshow(display_grid)
@@ -340,7 +346,7 @@ class GridMap:
         '''
         display_grid = np.array(self.occupancy_grid, dtype=np.float32)
 
-        print self.decomp_grid
+        # print self.decomp_grid
 
         # Color all visited nodes if requested
         # for v in self.occupancy_grid:
@@ -350,13 +356,15 @@ class GridMap:
             for c in xrange(self.cols):
                 plotter.text(c, r, self.height_dict[r, c],
                              ha='center', va='center', fontsize=16, color='gray')
+                disp_col_forlines = .2*self.height_dict[r, c]
+                display_grid[r, c] = disp_col_forlines
 
         # Plot display grid for visualization
         imgplot = plotter.imshow(display_grid)
         # Set interpolation to nearest to create sharp boundaries
         imgplot.set_interpolation('nearest')
         # Set color map to diverging style for contrast
-        imgplot.set_cmap('spectral')
+        # imgplot.set_cmap('spectral')
         plotter.show()
 
     def uninformed_heuristic(self, s):
