@@ -103,18 +103,26 @@ class GridMap:
                 # look for a horizontal discontinuity
                 elif c > 0 and \
                        abs(self.height_dict[(r, c)] - self.height_dict[(r, c-1)]) > self.cliff_height:
-                    if c > 0:
-                        if self.decomp_grid[r - 1, c - 1] == self.decomp_grid[r - 1, c]:
-                            is_new_cell = True
-                            cell_break_current_row = True
-                    else:
+                    if self.decomp_grid[r - 1, c - 1] == self.decomp_grid[r - 1, c]:
                         is_new_cell = True
                         cell_break_current_row = True
+                    else:
+                        is_new_cell = False
                     # print is_new_cell
+                    # print is_new_cell
+                # look for vertical discontinuity:
+                # elif r > 0 and \
+                #        abs(self.height_dict[(r, c)] - self.height_dict[(r-1, c)]) > self.cliff_height:
+                #     if self.decomp_grid[r, c - 1] == self.decomp_grid[r - 1, c - 1]:
+                #         is_new_cell = True
+                #         cell_break_current_row = True
+                #         print "vertical discontinuity", c, r
+                #     else:
+                #         is_new_cell = False
                 else:
                     is_new_cell = False
-                    # print is_new_cell
                 self.decomp_grid[r][c] = self.find_cell_num(r, c, is_new_cell)
+
 
                 # CHECK TO SEE IF VERTEX IN NEXT COLUMN, and set value to create new set of cells next column
                 if r < self.rows - 1:  # and not need_new_cell_next_row:
@@ -127,18 +135,18 @@ class GridMap:
                                 # print "Horizontal Vertex", new_cell_next_col_num
                                 # print r, c
                     # Vertical vertex
-                    if abs(self.height_dict[(r, c)] - self.height_dict[(r + 1, c)]) > self.cliff_height and not \
-                       need_new_cell_next_row:
-                        if r > 0 and self.decomp_grid[r - 1, c] == self.decomp_grid[r - 1, c]:
-                            need_new_cell_next_row = True
-                            new_cell_next_col_num.append(self.decomp_grid[r, c])
-                            # print "Vertical Vertex", new_cell_next_col_num
-                            # print r, c
-                        else:
-                            need_new_cell_next_row = True
-                            new_cell_next_col_num.append(self.decomp_grid[r, c])
-                            # print "Vertical Vertex Else", new_cell_next_col_num
-                            # print r, x
+                    # if abs(self.height_dict[(r, c)] - self.height_dict[(r + 1, c)]) > self.cliff_height and not \
+                    #    need_new_cell_next_row:
+                    #     if r > 0 and self.decomp_grid[r - 1, c] == self.decomp_grid[r - 1, c]:
+                    #         need_new_cell_next_row = True
+                    #         new_cell_next_col_num.append(self.decomp_grid[r, c])
+                    #         print "Vertical Vertex", new_cell_next_col_num
+                    #         print r, c
+                    #     else:
+                    #         need_new_cell_next_row = True
+                    #         new_cell_next_col_num.append(self.decomp_grid[r, c])
+                    #         print "Vertical Vertex Else", new_cell_next_col_num
+                    #         print r, x
         # print self.decomp_grid
         # print self.adjacency_graph
         # print self.cell_num_list
@@ -284,19 +292,22 @@ class GridMap:
         path - a list of tuples describing the path take from init to goal
         visited - a set of tuples describing the states visited during a search
         '''
+        plotter.axis([0-.5, self.cols-.5, self.rows-.5, 0-.5])
         display_grid = np.array(self.occupancy_grid, dtype=np.float32)
+        plotter.hold(True)
 
         # Color all visited nodes if requested
-        for v in visited:
-            display_grid[v] = _VISITED_COLOR
+        # for v in visited:
+        #    display_grid[v] = _VISITED_COLOR
         # Color path in increasing color from init to goal
         for i, p in enumerate(path):
             disp_col_forlines = _INIT_COLOR + _PATH_COLOR_RANGE*(i+1)/len(path)
             display_grid[p] = disp_col_forlines
-            if i > 1:
-                print p
-                print path[i-2]
-                plotter.plot([path[i-2][1], p[1]], [path[i-2][0], p[0]])  # , color)
+            if i > 0:
+                # print p
+                # print path[i-2]
+                plotter.plot([path[i-1][1], p[1]], [path[i-1][0], p[0]])  # , color)
+                plotter.pause(0.02)
 
         # display_grid[self.init_pos] = _INIT_COLOR
         # display_grid[self.goal] = _GOAL_COLOR
@@ -523,32 +534,30 @@ def path_coverage(g, init_state, f, actions):
     cell_to_start = g.decomp_grid[init_state]
     adj_mat_path = []
     adj_mat_path.append(cell_to_start)
-    while len(adj_mat_path) < len(g.cell_num_list):
-        for i, mat_path_instance in enumerate(adj_mat_path, 1):
-            for edge in reversed(g.adjacency_graph):
-                if (edge[0] == mat_path_instance) and (edge[1] not in adj_mat_path):
-                    adj_mat_path.append(edge[1])
-                if (edge[1] == mat_path_instance) and (edge[0] not in adj_mat_path):
-                    adj_mat_path.append(edge[0])
-    adj_mat_path.reverse()
+    list_of_states = []
+    for number in g.cell_num_list:
+        list_of_states.append(number)
+    # while len(adj_mat_path) < len(g.cell_num_list):
+    #     for i, mat_path_instance in enumerate(adj_mat_path, 1):
+    #         for edge in reversed(g.adjacency_graph):
+    #             if (edge[0] == mat_path_instance) and (edge[1] not in adj_mat_path):
+    #                 adj_mat_path.append(edge[1])
+    #             if (edge[1] == mat_path_instance) and (edge[0] not in adj_mat_path):
+    #                 adj_mat_path.append(edge[0])
+    # adj_mat_path.reverse()
 
     # Run "lawnmower" search on each state, move to next state directly?
     path = []
     loc_to_start = (g.rows - 1, g.cols - 1)
     path.append(loc_to_start)
+    # print adj_mat_path
     while len(adj_mat_path) > 0:
         cell_to_sweep = adj_mat_path.pop()
-        biggest_x = 0
-        biggest_y = 0
+        # print cell_to_sweep
+        list_of_states.remove(cell_to_sweep)
         # move to bottom right corner of the cell: MAKE A FUNCTION SO CAN DO TR, TL, BR, BL CORNERS
-        for r in xrange(g.rows):
-            for c in xrange(g.cols):
-                if g.decomp_grid[r, c] == cell_to_sweep:
-                    if c >= biggest_x and r >= biggest_y:
-                        biggest_x = c
-                        biggest_y = r
+        loc_to_start = move_into_new_cell(g, path[-1], cell_to_sweep)
         # Move from visited[-1] to loc_to_start:
-        loc_to_start = (biggest_y, biggest_x)
         useless1, new_path, useless2 =\
             a_star_search(path[-1], g.transition, loc_to_start, _ACTIONS, g.euclidean_heuristic)
         temp_path = path
@@ -557,22 +566,45 @@ def path_coverage(g, init_state, f, actions):
         _Actions_BR = ['r','d','u','l']
         # Sweep through the cell ( MAKE A FUNCTION) !!!!  :
         current_val_of_cell = g.decomp_grid[path[-1]]
-        hit_wall = False
+        # print current_val_of_cell
+        vert_direction = None
+        i = 0
         while current_val_of_cell == cell_to_sweep:
+            i += 1
             # move left if that stays in the cell:
             left_move_state = g.transition(path[-1], 'l')
             up_move_state = g.transition(path[-1], 'u')
             right_move_state = g.transition(path[-1], 'r')
-            if (g.decomp_grid[left_move_state] == cell_to_sweep) and (left_move_state != path[-1]) and not hit_wall:
+            down_move_state = g.transition(path[-1], 'd')
+            if (g.decomp_grid[left_move_state] == cell_to_sweep) and (left_move_state != path[-1]) and \
+                    ((left_move_state != path[-2]) or i < 2): # and not hit_wall:
                 path.append(left_move_state)
             # move right if that stays in the cell:
-            elif (g.decomp_grid[right_move_state] == cell_to_sweep) and (right_move_state != path[-1]) and hit_wall:
+            elif (g.decomp_grid[right_move_state] == cell_to_sweep) and (right_move_state != path[-1]) \
+                    and ((right_move_state != path[-2]) or i < 2): # and hit_wall:
                 path.append(right_move_state)
-            elif (g.decomp_grid[up_move_state] == cell_to_sweep) and (up_move_state != path[-1]):
+            elif (g.decomp_grid[up_move_state] == cell_to_sweep) and (up_move_state != path[-1])\
+                    and (vert_direction is None or vert_direction is 'up'):
                 path.append(up_move_state)
-                hit_wall = not hit_wall
+                vert_direction = 'up'
+            elif (g.decomp_grid[down_move_state] == cell_to_sweep) and (down_move_state != path[-1])\
+                    and (vert_direction is None or vert_direction is 'down'):
+                path.append(down_move_state)
+                vert_direction = 'down'
             else:
                 break
+        # Find the next cell to go to
+        if g.decomp_grid[g.transition(path[-1], 'u')] in list_of_states:
+            adj_mat_path.append(g.decomp_grid[g.transition(path[-1], 'u')])
+        elif g.decomp_grid[g.transition(path[-1], 'd')] in list_of_states:
+            adj_mat_path.append(g.decomp_grid[g.transition(path[-1], 'd')])
+        elif g.decomp_grid[g.transition(path[-1], 'l')] in list_of_states:
+            adj_mat_path.append(g.decomp_grid[g.transition(path[-1], 'l')])
+        elif g.decomp_grid[g.transition(path[-1], 'r')] in list_of_states:
+            adj_mat_path.append(g.decomp_grid[g.transition(path[-1], 'r')])
+        elif len(list_of_states) > 0:
+            adj_mat_path.append(list_of_states[-1])
+
 
     # Clean up the path #######
     for x, item in enumerate(path, 1):
@@ -585,6 +617,34 @@ def path_coverage(g, init_state, f, actions):
     visited = []
     return path, visited, None
 
+def move_into_new_cell(g, init, cell_to_sweep):
+    # find closest corner:
+    x = 0
+    y = 0
+    smallest_x = 100000
+    smallest_y = 100000
+    biggest_x = 0
+    biggest_y = 0
+    for r in xrange(g.rows):
+        for c in xrange(g.cols):
+            if g.decomp_grid[r, c] == cell_to_sweep:
+                if c >= biggest_x:
+                    biggest_x = c
+                if c <= smallest_x:
+                    smallest_x = c
+                if r >= biggest_y:
+                    biggest_y = r
+                if r <= smallest_y:
+                    smallest_y = r
+        if abs(init[0]-biggest_y) > abs(init[0]-smallest_y):
+            y = smallest_y
+        else:
+            y = biggest_y
+        if abs(init[1]-biggest_x) > abs(init[1]-smallest_x):
+            x = smallest_x
+        else:
+            x = biggest_x
+    return (y, x)
 
 def iter_dfs(init_state, f, actions):
     '''
