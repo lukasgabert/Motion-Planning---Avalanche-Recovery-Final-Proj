@@ -37,6 +37,7 @@ class GridMap:
         self.rows = None
         self.cols = None
         self.height_dict = {}
+        self.height_dict1 = {}
         self.height = None
         self.cliff_height = cliff_heightt
         self.cell_num_list = []
@@ -51,12 +52,34 @@ class GridMap:
 
         map_path - a string of the path to the file on disk
         '''
-        map_file = file(map_path,'r')
-        lines = [l.rstrip().lower() for l in map_file.readlines()]
-        map_file.close()
+
+        ### UNCOMMENT BELOW TO READ TEXT FILE
+        # map_file = file(map_path,'r')
+        # lines1 = [l.rstrip().lower() for l in map_file.readlines()]
+        # map_file.close()
+        # self.rows1 = len(lines1)
+        # self.cols1 = max([len(l) for l in lines1])
+        # self.init_pos1 = (self.rows1-1, self.cols1-1)
+        # if _DEBUG:
+        #     print 'rows', self.rows
+        #     print 'cols', self.cols
+        #     print lines1
+        # self.decomp_grid1 = np.zeros((self.rows1, self.cols1), dtype=int)
+        # self.occupancy_grid1 = np.zeros((self.rows1, self.cols1), dtype=np.bool)
+        # for r in xrange(self.rows1):
+        #     for c in xrange(self.cols1):
+        #         self.height_dict1[(r, c)] = float(lines1[r][c])
+        # map_array = np.zeros((self.rows1, self.cols1), dtype=float)
+        # for r in xrange(self.rows1):
+        #     for c in xrange(self.cols1):
+        #         map_array[r, c] = float(lines1[r][c])
+        # print map_array
+        # lines = map_array
+
+        lines = map_path
         self.rows = len(lines)
         self.cols = max([len(l) for l in lines])
-        self.init_pos = (self.rows-1, self.cols-1)
+        self.init_pos = (self.rows - 1, self.cols - 1)
         if _DEBUG:
             print 'rows', self.rows
             print 'cols', self.cols
@@ -615,7 +638,7 @@ def path_coverage(g, init_state, f, actions):
             break
 
     visited = []
-    return path, visited, None
+    return path
 
 def move_into_new_cell(g, init, cell_to_sweep):
     # find closest corner:
