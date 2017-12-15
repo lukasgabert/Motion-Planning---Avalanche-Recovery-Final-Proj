@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
-from stl import mesh
+# from stl import mesh
 import random
 import graph_search_improved as gsi
 
@@ -37,6 +37,8 @@ class AvalancheMap:
 
         # waypoints
         self.waypoints = None
+        self.sized_waypoints = []
+        self.total_path = None
 
         if map_path is not None:
             self.read_stl(map_path)
@@ -550,7 +552,79 @@ class AvalancheMap:
             g = gsi.GridMap(self.height_map, cliff_height)
 
             self.waypoints = gsi.path_coverage(g, g.init_pos, g.transition, gsi._ACTIONS)
-            g.display_map_new(self.waypoints)
+            # g.display_map_new(self.waypoints)
 
-            g.display_cell_values()
-            g.display_cell_height()
+            # g.display_cell_values()
+            # g.display_cell_height()
+
+    def follow_coverage_waypoints(self, num_averaging):
+        # From max of rows, cols, go to first waypoint.
+        for i, point in enumerate(self.waypoints):
+            self.sized_waypoints.insert(0, (point[0]*(num_averaging), point[1]*(num_averaging)))
+        # print self.waypoints
+        # print self.sized_waypoints
+        current_loc = (self.cols-1, self.rows-1)
+        list_of_loc = []
+        list_of_loc.append(current_loc)
+        while len(self.sized_waypoints) > 0:
+            next_point = self.sized_waypoints.pop()
+            while current_loc != next_point:
+                # go whatever direction is needed
+                # print current_loc
+                # print next_point
+                if current_loc[0] < next_point[0]:
+                    current_loc = (current_loc[0] + 1, current_loc[1])
+                if current_loc[0] > next_point[0]:
+                    current_loc = (current_loc[0] - 1, current_loc[1])
+                if current_loc[1] < next_point[1]:
+                    current_loc = (current_loc[0], current_loc[1] + 1)
+                if current_loc[1] > next_point[1]:
+                    current_loc = (current_loc[0], current_loc[1] - 1)
+                # CHECK THE LOCAL PLANNER FROM STEVEN
+                list_of_loc.append(current_loc)
+        print "rows", self.rows
+        print "cols", self.cols
+        self.total_path = list_of_loc
+
+
+    def display_map_new(self, path=[], visited={}):
+        '''
+        Visualize the map read in. Optionally display the resulting plan and visisted nodes
+
+        path - a list of tuples describing the path take from init to goal
+        visited - a set of tuples describing the states visited during a search
+        '''
+        path = self.total_path
+
+        _GOAL_COLOR = 0.75
+        _INIT_COLOR = 0.25
+        _PATH_COLOR_RANGE = _GOAL_COLOR - _INIT_COLOR
+        _VISITED_COLOR = 0.9
+
+        plt.axis([0-.5, self.rows-.5, self.cols-.5, 0-.5])
+        display_grid = np.array(np.zeros((self.cols, self.rows ), dtype=np.float32), dtype=np.float32)
+        plt.hold(True)
+
+        # Color all visited nodes if requested
+        # for v in visited:
+        #    display_grid[v] = _VISITED_COLOR
+        # Color path in increasing color from init to goal
+        for i, p in enumerate(path):
+            disp_col_forlines = _INIT_COLOR + _PATH_COLOR_RANGE*(i+1)/len(path)
+            display_grid[p] = disp_col_forlines
+            if i > 0:
+                # print p
+                # print path[i-2]
+                plt.plot([path[i-1][1], p[1]], [path[i-1][0], p[0]])  # , color)
+                plt.pause(0.001)
+
+        # display_grid[self.init_pos] = _INIT_COLOR
+        # display_grid[self.goal] = _GOAL_COLOR
+
+        # Plot display grid for visualization
+        imgplot = plt.imshow(display_grid)
+        # Set interpolation to nearest to create sharp boundaries
+        imgplot.set_interpolation('nearest')
+        # Set color map to diverging style for contrast
+        imgplot.set_cmap('spectral')
+        plt.show()
