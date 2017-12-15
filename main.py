@@ -21,6 +21,14 @@ if __name__ == '__main__':
     simple_map.get_coverage_waypoints(1)
     simple_map.follow_coverage_waypoints(4)
     simple_map.display_map_new()
+
+# MAP TO TEST AGAINST
+    simple_map1 = a_map.AvalancheMap(voxel_delta=0.5)
+    simple_map1.load_map('snow-gentle-voxel-0.5.txt')
+    simple_map1.get_height_map(4)
+    simple_map1.get_coverage_waypoints(1000)
+    simple_map1.follow_coverage_waypoints(4)
+    simple_map1.display_map_new()
     # wait = input('Pres Enter')
 
     # simple_map.load_map('Maps\\default_map.txt')

@@ -40,6 +40,9 @@ class AvalancheMap:
         self.sized_waypoints = []
         self.total_path = None
 
+        # for timing
+        self.time = 0.0
+
         if map_path is not None:
             self.read_stl(map_path)
 
@@ -564,6 +567,8 @@ class AvalancheMap:
         # print self.waypoints
         # print self.sized_waypoints
         current_loc = (self.cols-1, self.rows-1)
+        current_loc_z = self.get_highest_z(current_loc[1], current_loc[0])
+        new_loc_z = 0.0
         list_of_loc = []
         list_of_loc.append(current_loc)
         while len(self.sized_waypoints) > 0:
@@ -574,16 +579,26 @@ class AvalancheMap:
                 # print next_point
                 if current_loc[0] < next_point[0]:
                     current_loc = (current_loc[0] + 1, current_loc[1])
-                if current_loc[0] > next_point[0]:
+                    self.time += 1
+                elif current_loc[0] > next_point[0]:
                     current_loc = (current_loc[0] - 1, current_loc[1])
-                if current_loc[1] < next_point[1]:
+                    self.time += 1
+                elif current_loc[1] < next_point[1]:
                     current_loc = (current_loc[0], current_loc[1] + 1)
-                if current_loc[1] > next_point[1]:
+                    self.time += 1
+                elif current_loc[1] > next_point[1]:
                     current_loc = (current_loc[0], current_loc[1] - 1)
+                    self.time += 1
+                # DO HEIGHT CHECKING
+                new_loc_z = self.get_highest_z(current_loc[1], current_loc[0])
+                z_diff = current_loc_z - new_loc_z
+                self.time += z_diff
+                current_loc_z = new_loc_z
                 # CHECK THE LOCAL PLANNER FROM STEVEN
                 list_of_loc.append(current_loc)
-        print "rows", self.rows
-        print "cols", self.cols
+        # print "rows", self.rows
+        # print "cols", self.cols
+        print "time", self.time
         self.total_path = list_of_loc
 
 
@@ -616,7 +631,7 @@ class AvalancheMap:
                 # print p
                 # print path[i-2]
                 plt.plot([path[i-1][1], p[1]], [path[i-1][0], p[0]])  # , color)
-                plt.pause(0.001)
+                # plt.pause(0.001)
 
         # display_grid[self.init_pos] = _INIT_COLOR
         # display_grid[self.goal] = _GOAL_COLOR
