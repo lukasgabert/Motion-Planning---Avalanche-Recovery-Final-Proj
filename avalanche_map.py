@@ -592,7 +592,7 @@ class AvalancheMap:
                 # DO HEIGHT CHECKING
                 new_loc_z = self.get_highest_z(current_loc[1], current_loc[0])
                 z_diff = current_loc_z - new_loc_z
-                self.time += z_diff
+                self.time += abs(z_diff)
                 current_loc_z = new_loc_z
                 # CHECK THE LOCAL PLANNER FROM STEVEN
                 list_of_loc.append(current_loc)
