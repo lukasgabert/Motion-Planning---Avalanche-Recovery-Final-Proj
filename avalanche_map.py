@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 from mpl_toolkits import mplot3d
 from stl import mesh
 import random
+import graph_search_improved as gsi
+
 
 
 
@@ -17,12 +19,14 @@ Assumptions:
 '''
 class AvalancheMap:
 
-    def __init__(self, map_path=None, voxel_delta=1):
+    def __init__(self, map_path=None, voxel_delta=0.5):
         self.rows    = None
         self.cols    = None
         self.heights = None
 
         self.a_map   = None
+        self.mesh_map = None
+        self.height_map = None
 
         # stl file members
         self.x_range = None               # stl min to max w/ step size delta: x axis
@@ -31,129 +35,135 @@ class AvalancheMap:
 
         self.voxel_delta = voxel_delta    # how accurate we want our cell decomposition
 
+        # waypoints
+        self.waypoints = None
+
         if map_path is not None:
             self.read_stl(map_path)
 
     def read_stl(self, file_path='Maps\\Simple_STL.stl'):
-        mesh_map = mesh.Mesh.from_file(file_path)
+        self.mesh_map = mesh.Mesh.from_file(file_path)
 
-        xmin = int(min([min([x[0] for x in vec]) for vec in mesh_map.vectors]))
-        xmax = int(max([max([x[0] for x in vec]) for vec in mesh_map.vectors]))+1
-        ymin = int(min([min([x[1] for x in vec]) for vec in mesh_map.vectors]))
-        ymax = int(max([max([x[1] for x in vec]) for vec in mesh_map.vectors]))+1
-        zmin = int(min([min([x[2] for x in vec]) for vec in mesh_map.vectors]))
-        zmax = int(max([max([x[2] for x in vec]) for vec in mesh_map.vectors]))+1
+        xmin = int(min([min([x[0] for x in vec]) for vec in self.mesh_map.vectors]))
+        xmax = int(max([max([x[0] for x in vec]) for vec in self.mesh_map.vectors]))+1
+        ymin = int(min([min([x[1] for x in vec]) for vec in self.mesh_map.vectors]))
+        ymax = int(max([max([x[1] for x in vec]) for vec in self.mesh_map.vectors]))+1
+        zmin = int(min([min([x[2] for x in vec]) for vec in self.mesh_map.vectors]))
+        zmax = int(max([max([x[2] for x in vec]) for vec in self.mesh_map.vectors]))+1
 
         self.x_range = np.arange(xmin, xmax, self.voxel_delta)
         self.y_range = np.arange(ymin, ymax, self.voxel_delta)
         self.z_range = np.arange(zmin, zmax, self.voxel_delta)
 
+        print 'x_range: {0}\ny_range: {1}\nz_range: {2}'.format(self.x_range, self.y_range, self.z_range)
+        print len(self.x_range)
+        print len(self.y_range)
+        print len(self.z_range)
+
         dt = np.dtype([('occupied', np.bool)])
         self.a_map = np.zeros((len(self.x_range), len(self.y_range), len(self.z_range)), dtype=np.bool)
 
-        self.voxelize(mesh_map)
+        self.voxelize(self.mesh_map, False, False)
 
-    def voxelize(self, mesh_map):
-        # fig = plt.figure(1)
-        # ax = mplot3d.Axes3D(fig)
+    def voxelize(self, mesh_map, draw_voxels=False, draw_mesh=False):
+        if draw_mesh:
+            fig1 = plt.figure(1)
+            ax1 = mplot3d.Axes3D(fig1)
+
+        if draw_voxels:
+            fig2 = plt.figure(2)
+            ax2 = mplot3d.Axes3D(fig2)
+
         r, c, h = 0, 0, 0
-
-        c = 0
         for x in self.x_range:
             r = 0
             for y in self.y_range:
                 h = 0
                 for z in self.z_range:
+                    print '({0},{1},{2})'.format(c, r, h)
+                    # h += 1
+                    # continue
                     B1 = (x, y, z)
                     B2 = (x + self.voxel_delta, y + self.voxel_delta, z + self.voxel_delta)
                     for vec in mesh_map.vectors:
                         v0 = vec[0]
                         v1 = vec[1]
                         v2 = vec[2]
-                        #
-                        # xs = [v0[0], v1[0], v2[0], v0[0]]
-                        # ys = [v0[1], v1[1], v2[1], v0[1]]
-                        # zs = [v0[2], v1[2], v2[2], v0[2]]
-                        #
-                        # ax.plot(xs, ys, zs, 'b')
+
                         if self.check_line_in_box(B1, B2, v0, v1)[0] or \
                            self.check_line_in_box(B1, B2, v1, v2)[0] or \
                            self.check_line_in_box(B1, B2, v2, v0)[0]:
                             self.a_map[c][r][h] = True
-                            break
 
-                            # v = np.array([[x, y, z],
-                            #               [x + self.voxel_delta, y, z],
-                            #               [x, y + self.voxel_delta, z],
-                            #               [x, y, z + self.voxel_delta],
-                            #               [x + self.voxel_delta, y + self.voxel_delta, z],
-                            #               [x + self.voxel_delta, y, z + self.voxel_delta],
-                            #               [x, y + self.voxel_delta, z + self.voxel_delta],
-                            #               [x + self.voxel_delta, y + self.voxel_delta, z + self.voxel_delta]])
-                            #
-                            #       v6       v7
-                            #       +--------+
-                            #      /|       /|
-                            #  v3 / |   v5 / |
-                            #    +--------+  |
-                            #    |  +-----|--+
-                            #    | / v2   | / v4
-                            #    |/       |/
-                            #    +--------+
-                            #    v0       v1
-                            #
-                            # bottom, top, front, back, left, right
-                            # sides = [[v[0], v[1], v[4], v[2]], [v[3], v[5], v[7], v[6]], [v[0], v[1], v[5], v[3]],
-                            #          [v[2], v[4], v[7], v[6]], [v[0], v[2], v[6], v[3]], [v[1], v[4], v[7], v[5]]]
-                            #
-                            #
-                            # ax.add_collection3d(mplot3d.art3d.Poly3DCollection(sides,
-                            #                                                    facecolors='cyan',
-                            #                                                    linewidths=1,
-                            #                                                    edgecolors='r',
-                            #                                                    alpha=.25))
+                            if draw_voxels:
+                                v = np.array([[x, y, z],
+                                              [x + self.voxel_delta, y, z],
+                                              [x, y + self.voxel_delta, z],
+                                              [x, y, z + self.voxel_delta],
+                                              [x + self.voxel_delta, y + self.voxel_delta, z],
+                                              [x + self.voxel_delta, y, z + self.voxel_delta],
+                                              [x, y + self.voxel_delta, z + self.voxel_delta],
+                                              [x + self.voxel_delta, y + self.voxel_delta, z + self.voxel_delta]])
+                                #
+                                #       v6       v7
+                                #       +--------+
+                                #      /|       /|
+                                #  v3 / |   v5 / |
+                                #    +--------+  |
+                                #    |  +-----|--+
+                                #    | / v2   | / v4
+                                #    |/       |/
+                                #    +--------+
+                                #    v0       v1
+                                #
+                                # bottom, top, front, back, left, right
+                                sides = [[v[0], v[1], v[4], v[2]], [v[3], v[5], v[7], v[6]], [v[0], v[1], v[5], v[3]],
+                                         [v[2], v[4], v[7], v[6]], [v[0], v[2], v[6], v[3]], [v[1], v[4], v[7], v[5]]]
+
+
+                                ax2.add_collection3d(mplot3d.art3d.Poly3DCollection(sides,
+                                                                                    facecolors='cyan',
+                                                                                    linewidths=1,
+                                                                                    edgecolors='r',
+                                                                                    alpha=.25))
+
+                            break
                     h += 1
                 r += 1
             c += 1
-        # for vec in mesh_map.vectors:
-        #     v0 = vec[0]
-        #     v1 = vec[1]
-        #     v2 = vec[2]
-        #
-        #     xs = [v0[0], v1[0], v2[0], v0[0]]
-        #     ys = [v0[1], v1[1], v2[1], v0[1]]
-        #     zs = [v0[2], v1[2], v2[2], v0[2]]
-        #
-        #     ax.plot(xs, ys, zs, 'b')
 
-        # ax.plot(v0[0], v0[1], v0[2])
-        # ax.add_collection3d(mplot3d.art3d.Poly3DCollection(mesh_map.vectors[0]))
+        if draw_mesh:
+            for vec in mesh_map.vectors:
+                v0 = vec[0]
+                v1 = vec[1]
+                v2 = vec[2]
 
-        # scale = mesh_map.points.flatten(-1)
-        # ax.auto_scale_xyz(scale, scale, scale)
+                xs = [v0[0], v1[0], v2[0], v0[0]]
+                ys = [v0[1], v1[1], v2[1], v0[1]]
+                zs = [v0[2], v1[2], v2[2], v0[2]]
 
-        # fig2 = plt.figure(2)
-        # ax2 = mplot3d.Axes3D(fig2)
-        #
-        # self.rows    = r
-        # self.cols    = c
-        # self.heights = h
-        #
-        # for c in range(self.cols):
-        #     for r in range(self.rows):
-        #         for h in range(self.heights):
-        #             if self.a_map[c][r][h]:
-        #                 ax2.scatter(c, r, h)
-        #
-        # plt.show()
+                ax1.plot(xs, ys, zs, 'b')
+
+            scale = mesh_map.points.flatten(-1)
+            ax1.auto_scale_xyz(scale, scale, scale)
+            fig1.show()
+            fig1.savefig('gentle-slope-wireframe_0_5.png')
+
+        if draw_voxels:
+            scale = mesh_map.points.flatten(-1)
+            ax2.auto_scale_xyz(scale, scale, scale)
+            fig2.show()
+            fig2.savefig('gentle-slope-voxel_0_5.png')
 
         self.rows = r
         self.cols = c
         self.heights = h
 
+        self.draw_map()
         self.print_map()
         self.fill_in_terrain()
         self.print_map()
+        self.draw_map()
 #
 #       +--------+
 #      /|       /|
@@ -232,29 +242,35 @@ class AvalancheMap:
 
         return False
 
-    def print_map(self):
-        xy_planes = {}
-
-        for h in xrange(self.heights):
-            xy_plane = np.zeros((self.cols, self.rows), np.bool)
-
-            for c in xrange(self.cols):
-                for r in xrange(self.rows):
-                    xy_plane[c][r] = self.a_map[c][r][h]
-
-            xy_planes[h] = xy_plane[:]
-
-        for h in xy_planes.keys():
-            print xy_planes[h]
-
     def fill_in_terrain(self):
         for c in xrange(self.cols):
             for r in xrange(self.rows):
-                for h in range(self.heights-1, -1, -1):
-                    if self.a_map[c][r][h]:
-                        for h_prime in range(0, h):
-                            self.a_map[c][r][h_prime] = True
-                        break
+                h = self.get_highest_z(r, c)
+                if h == -1:
+                    h = self.get_average_neighbor_height(r, c)
+                    self.a_map[c][r][h] = True
+                for h_prime in range(0, h):
+                    self.a_map[c][r][h_prime] = True
+
+    def get_average_neighbor_height(self, r, c):
+        h_array = []
+        for x in range(c-1, c+2, 1):
+            for y in range(r-1, r+2, 1):
+                try:
+                    h = self.get_highest_z(y, x)
+                    if h >= 0:
+                        h_array.append(h)
+                except:
+                    pass
+
+        h = int(sum(h_array)/len(h_array))
+        return h
+
+    def get_highest_z(self, r, c):
+        for h in range(self.heights-1, -1, -1):
+            if self.a_map[c][r][h]:
+                return h
+        return -1
 
     def save_map(self, file_name=None):
         if file_name is None:
@@ -309,6 +325,87 @@ class AvalancheMap:
             line = map_file.readline()
 
         map_file.close()
+
+    def draw_map(self):
+        fig = plt.figure()
+        ax = mplot3d.Axes3D(fig)
+
+        for c in xrange(self.cols):
+            for r in xrange(self.rows):
+                for h in xrange(self.heights):
+                    if self.a_map[c][r][h]:
+                        v = np.array([[c, r, h],
+                                      [c+1, r, h],
+                                      [c, r+1, h],
+                                      [c, r, h+1],
+                                      [c+1, r+1, h],
+                                      [c+1, r, h+1],
+                                      [c, r+1, h+1],
+                                      [c+1, r+1, h+1]])
+                        #
+                        #       v6       v7
+                        #       +--------+
+                        #      /|       /|
+                        #  v3 / |   v5 / |
+                        #    +--------+  |
+                        #    |  +-----|--+
+                        #    | / v2   | / v4
+                        #    |/       |/
+                        #    +--------+
+                        #    v0       v1
+                        #
+                        # bottom, top, front, back, left, right
+                        sides = [[v[0], v[1], v[4], v[2]], [v[3], v[5], v[7], v[6]], [v[0], v[1], v[5], v[3]],
+                                 [v[2], v[4], v[7], v[6]], [v[0], v[2], v[6], v[3]], [v[1], v[4], v[7], v[5]]]
+
+                        ax.add_collection3d(mplot3d.art3d.Poly3DCollection(sides,
+                                                                           facecolors='cyan',
+                                                                           linewidths=1,
+                                                                           edgecolors='r',
+                                                                           alpha=.25))
+
+        ax.auto_scale_xyz([-5,self.cols+5], [-5, self.rows+5], [-5, self.heights+5])
+        plt.show()
+
+    def print_map(self):
+        xy_planes = {}
+
+        for h in xrange(self.heights):
+            xy_plane = np.zeros((self.cols, self.rows), np.bool)
+
+            for c in xrange(self.cols):
+                for r in xrange(self.rows):
+                    xy_plane[c][r] = self.a_map[c][r][h]
+
+            xy_planes[h] = xy_plane[:]
+
+        for h in xy_planes.keys():
+            print xy_planes[h]
+
+    def get_height_map(self, num_averaging=4):
+        new_cols = int(self.cols/num_averaging)+1
+        new_rows = int(self.rows/num_averaging)+1
+        old_rows = self.rows
+        old_cols = self.cols
+
+        self.height_map = np.zeros((new_cols, new_rows), np.float64)
+        for c in xrange(new_cols):
+            x_c = num_averaging*c
+            for r in xrange(new_rows):
+                y_r = num_averaging*r
+                h_avg = 0.0
+                count = 0
+                for x in range(x_c, x_c+num_averaging+1, 1):
+                    for y in range(y_r, y_r+num_averaging+1, 1):
+                        try:
+                            h = self.get_highest_z(y, x)
+                            h_avg += h
+                            count += 1
+                        except:
+                            pass
+                h_avg /= count
+                self.height_map[c][r] = h_avg
+        print self.height_map
 
     def beacon_location(self, num_beacons, avalanche_size='small', default_beacon_range = 60):
         ''' Inputs:
@@ -448,3 +545,12 @@ class AvalancheMap:
         ax2.set_ylabel('Y_Distance')
         ax2.set_zlabel('Z_Height')
         plt.show()
+
+    def get_coverage_waypoints(self, cliff_height):
+            g = gsi.GridMap(self.height_map, cliff_height)
+
+            self.waypoints = gsi.path_coverage(g, g.init_pos, g.transition, gsi._ACTIONS)
+            g.display_map_new(self.waypoints)
+
+            g.display_cell_values()
+            g.display_cell_height()
